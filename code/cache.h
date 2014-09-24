@@ -27,12 +27,14 @@
 #define CACHE_PARAM_WRITEALLOC 7
 #define CACHE_PARAM_NOWRITEALLOC 8
 
+typedef unsigned int cpu_addr_t ;
 
 /* structure definitions */
 typedef struct cache_line_
     {
-    unsigned tag;
+    cpu_addr_t tag;
     int dirty;
+    int hits;
 
     struct cache_line_ *LRU_next;
     struct cache_line_ *LRU_prev;
@@ -40,10 +42,12 @@ typedef struct cache_line_
 
 typedef struct cache_
     {
-    int size;			/* cache size */
+    int size;			    /* cache size */
     int associativity;		/* cache associativity */
-    int n_sets;			/* number of cache sets */
-    unsigned index_mask;		/* mask to find cache index */
+    int n_sets;			    /* number of cache sets */
+    cpu_addr_t tag_mask;    /* mask to find cache tag */
+    int tag_mask_offset;    /* number of zero bits in mask */
+    cpu_addr_t index_mask;  /* mask to find cache index */
     int index_mask_offset;	/* number of zero bits in mask */
     Pcache_line *LRU_head;	/* head of LRU list for each set */
     Pcache_line *LRU_tail;	/* tail of LRU list for each set */
@@ -54,7 +58,7 @@ typedef struct cache_
 typedef struct cache_stat_
     {
     int accesses;			/* number of memory references */
-    int misses;			/* number of cache misses */
+    int misses;			    /* number of cache misses */
     int replacements;		/* number of misses that cause replacments */
     int demand_fetches;		/* number of fetches */
     int copies_back;		/* number of write backs */

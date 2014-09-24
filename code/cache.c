@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 
 #include "cache.h"
 #include "main.h"
@@ -24,10 +25,12 @@ static int cache_writealloc = DEFAULT_CACHE_WRITEALLOC;
 /* cache model data structures */
 static Pcache icache;
 static Pcache dcache;
+static Pcache ucache;
 static cache c1;
 static cache c2;
 static cache_stat cache_stat_inst;
 static cache_stat cache_stat_data;
+static Pcache_line free_cache_lines;
 
 /************************************************************/
 void set_cache_param(int param, int value)
@@ -77,18 +80,204 @@ void set_cache_param(int param, int value)
 /************************************************************/
 void init_cache()
     {
-
+    int set;
+    
     /* initialize the cache, and cache statistics data structures */
 
+    if (cache_split == FALSE) /* Unified cache */
+        {
+        ucache = dcache = icache = &c1;
+
+        ucache->size = cache_usize;
+        ucache->associativity = cache_assoc;
+        ucache->n_sets = (cache_usize * cache_assoc) / cache_block_size;
+
+        /*
+         * If you have computed the index mask and index mask offset 
+         * fields properly, then you should be able to compute the 
+         * index into the cache for an address, addr, in the following
+         * way: 
+         *
+         * index = (addr & ucache->index_mask) >> ucache->index_mask_offset
+         *
+         * Then, check the cache line at this index, ucache->LRU_head[index]. 
+         * If the cache line has a tag that matches the address tag, you have
+         * a cache hit. Otherwise, you have a cache miss.
+         */
+         
+        ucache->index_mask_offset = LOG2(cache_block_size);
+        ucache->index_mask = ((ucache->n_sets - 1) << ucache->index_mask_offset);
+
+        ucache->tag_mask_offset = LOG2(cache_usize);
+        ucache->tag_mask = ~(1 << (ucache->tag_mask_offset - 1));
+
+        /*
+         * The LRU head array is the data structure that keeps track 
+         * of all the cache lines in the cache: each element in this 
+         * array is a pointer to a cache line that occupies that set, 
+         * or a NULL pointer if there is no valid cache line in the 
+         * set (initially, all elements in the array should be set to NULL).
+         * The cache line itself is kept in the cache line data structure, 
+         * also declared in cache.h.
+         *
+         * Your simulator, however, should never allow the number of
+         * cache lines in each linked list to exceed the degree of 
+         * associativity configured in the cache. To enforce this, 
+         * allocate an array of integers to the set contents field in
+         * the cache data structure, one integer per set. Use these 
+         * integers as counters to count the number of cache lines in
+         * each set, and make sure that none of the counters ever
+         * exceeds the associativity of the cache.
+         */
+        
+        ucache->LRU_head = (Pcache_line *)malloc(sizeof(Pcache_line) * ucache->n_sets);
+        ucache->LRU_tail = (Pcache_line *)malloc(sizeof(Pcache_line) * ucache->n_sets);
+        ucache->set_contents = (int *)malloc(sizeof(int) * ucache->n_sets);
+
+        if ((ucache->LRU_head == NULL) || 
+            (ucache->LRU_tail == NULL) ||
+            (ucache->set_contents == NULL))
+            {
+            printf("error allocating cache array\n");
+            exit(-1);
+            }
+        
+        /* Initially, all elements in the array should be set to NULL */
+        
+        for (set = 0; set < ucache->n_sets; set++)
+            {
+            ucache->LRU_head[set] = NULL;
+            ucache->LRU_tail[set] = NULL;
+            ucache->set_contents[set]= 0;
+            }
+
+        ucache->contents = 0;
+
+        free_cache_lines = NULL;
+        }
+    else                      /* Split cache */
+        {
+        dcache = &c1;
+        icache = &c2;
+        }
     }
-/************************************************************/
 
 /************************************************************/
-void perform_access(unsigned addr, unsigned access_type)
+Pcache_line get_free_cache_line(cpu_addr_t addr, cpu_addr_t tag_mask)
     {
+    Pcache_line head = free_cache_lines;
+    
+    if (head != NULL)
+        {
+        free_cache_lines = head->LRU_next;
+        }
+    else
+        {
+        head = (Pcache_line)malloc(sizeof(cache_line));
+
+        if (head == NULL)
+            return NULL;
+        }
+    
+    memset((void*)head, 0, sizeof(cache_line));
+
+    head->tag = addr & tag_mask;
+
+    return head;
+    }
+
+/************************************************************/
+void perform_access(cpu_addr_t addr, unsigned access_type)
+    {
+    int index;
+    Pcache_line LRU_head;
+    Pcache_line LRU_curr;
 
     /* handle an access to the cache */
 
+    if (cache_split == FALSE) /* Unified cache */
+        {
+        index = (addr & ucache->index_mask) >> ucache->index_mask_offset;
+        if (index >= ucache->n_sets)
+            {
+            printf("skipping access (%d), index(%d) too big!\n", 
+                    access_type, index);
+            
+            return;
+            }
+        
+        LRU_head = LRU_curr = ucache->LRU_head[index];
+            
+        while (LRU_curr != NULL)
+            {
+            if (LRU_curr->tag == (addr & ucache->tag_mask))
+                {
+                LRU_curr->hits++;
+
+                if (access_type == TRACE_DATA_STORE)
+                    {
+                    LRU_curr->dirty = TRUE;
+                    }
+
+                return;
+                }
+
+            LRU_curr = LRU_curr->LRU_next;
+            }
+
+
+        if (access_type == TRACE_INST_LOAD)
+            {
+            cache_stat_inst.accesses++;
+            cache_stat_inst.misses++;
+            cache_stat_inst.demand_fetches++;
+            }
+        else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
+            {
+            cache_stat_data.accesses++;
+            cache_stat_data.misses++;
+            cache_stat_data.demand_fetches++;
+            }
+
+        if (ucache->set_contents[index] == ucache->associativity)
+            {
+            LRU_head->tag = addr & ucache->tag_mask;
+
+            if (access_type == TRACE_INST_LOAD)
+                {
+                cache_stat_inst.replacements++;
+                }
+            else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
+                {
+                cache_stat_data.replacements++;
+                }
+            }
+
+        LRU_curr = get_free_cache_line(addr, ucache->tag_mask);
+
+        if (LRU_curr != NULL)
+            {
+            insert(&ucache->LRU_head[index], 
+                   &ucache->LRU_tail[index], 
+                   LRU_curr);
+            }
+        else
+            {
+            printf("cat not get cache line for access (%d), index(%d)!\n", 
+                    access_type, index);
+            exit(-1);
+            }
+       
+        LRU_curr->hits = 1;
+
+        if (access_type == TRACE_DATA_STORE)
+            {
+            LRU_curr->dirty = TRUE;
+            }
+        }
+    else                      /* Split cache */
+        {
+        }
     }
 /************************************************************/
 

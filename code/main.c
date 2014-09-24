@@ -140,7 +140,8 @@ void parse_args(int argc, char ** argv)
 /************************************************************/
 void play_trace(FILE * inFile)
     {
-    unsigned addr, data, access_type;
+    addr_t addr;
+    unsigned data, access_type;
     int num_inst;
 
     num_inst = 0;
@@ -169,7 +170,7 @@ void play_trace(FILE * inFile)
 /************************************************************/
 
 /************************************************************/
-int read_trace_element(FILE * inFile, unsigned * access_type, unsigned * addr)
+int read_trace_element(FILE * inFile, unsigned * access_type, cpu_addr_t * addr)
     {
     int result;
     char c;
