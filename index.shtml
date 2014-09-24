@@ -1,0 +1,195 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>Project 1 - Basic Cache Simulator</title>
+                                  
+  <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+  <link href="style.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+
+<table width="100%" cellspacing="0" cellpadding="8">
+<tr>
+<td width="15%" valign="top">
+<table class="menu" cellpadding="2" cellspacing="2" border="0" width="100%">
+  <tbody>
+      <tr><td><a href="http://www.cs.umd.edu/class/spring2012/cmsc411/">Home</a></td></tr>
+      <tr><td><a href="http://www.cs.umd.edu/class/spring2012/cmsc411/syllabus.shtml">Syllabus</a></td></tr>
+      <tr><td><a href="http://www.cs.umd.edu/class/spring2012/cmsc411/schedule.shtml">Schedule<br> <i>(w/ links to handouts)</i></a></td></tr>
+      <tr><td><a href="http://www.cs.umd.edu/class/spring2012/cmsc411/resources.shtml">Resources</a></td></tr>
+      <tr><td><a
+      href="https://forum.cs.umd.edu/forumdisplay.php?f=254">Forum</a></td></tr>
+      <tr><td><a href="https://submit.cs.umd.edu">Submit Server</a></td></tr>
+      <tr><td><a href="https://grades.cs.umd.edu">Grades Server</a></td></tr>
+  </tbody>
+</table>
+<td width="85%" valign="top">
+
+<div class="header">
+<center>
+<h2>CMSC 411, Spring 2012</h2>
+<h3>Computer Systems Architecture</h3>
+</center>
+</div>
+
+
+<h1 class="title">Project 1 - Basic Cache Simulator</h1>
+<center>
+Due 11:59pm Tue, April 10th, 2012 
+</center>
+
+<p>
+
+</center>
+
+<p>
+</p><h2>Project description</h2>
+
+<p>
+You will need to implement a trace-driven cache simulator,
+and use it to evaluate the performance of different 
+cache architecture features.  
+
+<p> 
+
+The project is described in detail in <a href="sim.pdf">sim.pdf</a>.
+
+
+</p><h2>Getting Started</h2>
+
+Download the following archive file <a href="p1.zip">p1.zip</a>
+and extract its contents.
+<p>
+Along with files used to make direct submissions to the
+submit server (submit.jar, <a href=".submit">.submit</a>), you will
+find the following project files:
+</p><ul>
+<li><a href="code/cache.h">cache.h</a> - cache simulator definitions
+<li><a href="code/cache.c">cache.c</a> - cache simulator (put all your edits here)
+<li><a href="code/main.h">main.h</a> - simulation driver definitions
+<li><a href="code/main.c">main.c</a> - simulation driver 
+</li><li>Public tests
+<ul>
+<li> <a href="traces/public-block.trace">public-block.trace</a> - test cache block sizes
+<li> <a href="traces/public-assoc.trace">public-assoc.trace</a> - test cache associativity
+<li> <a href="traces/public-write.trace">public-write.trace</a> - test cache write policy
+<li> <a href="traces/public-instr.trace">public-instr.trace</a> - test instruction cache
+<li> <a href="traces/spice10.trace">spice10.trace</a> - 1st 10 accesses in spice.trace
+<li> <a href="traces/spice100.trace">spice100.trace</a> - 1st 100 accesses in spice.trace
+<li> <a href="traces/spice1000.trace">spice1000.trace</a> - 1st 1000 accesses in spice.trace
+</ul>
+</li><li>Expected outputs for public tests
+<ul>
+<li> <a href="outputs/public-block1.out">public-block1.out</a> 
+<li> <a href="outputs/public-assoc1.out">public-assoc1.out</a> 
+<li> <a href="outputs/public-write1.out">public-write1.out</a> 
+<li> <a href="outputs/public-instr1.out">public-instr1.out</a> 
+<li> <a href="outputs/spice10.out">spice10.out</a> 
+<li> <a href="outputs/spice100.out">spice100.out</a> 
+<li> <a href="outputs/spice1000.out">spice1000.out</a> 
+</li></ul>
+<li> <a href="code/Makefile">Makefile</a> - makefile to create simulator
+<li> <a href="runPublic">runPublic</a> - csh script to run public tests
+<li> <a href="sim.pdf">sim.pdf</a> - detailed description of project
+<li> <a href="tags.txt">tags.txt</a> - example index & tag values for spice100.trace
+<li> <a href="submit.jar">submit.jar</a> - Jar file for command-line submissions
+</li></ul>
+
+In addition, there are three large application traces (not in p1.zip)
+you may download separately in <a href="traces.zip">traces.zip<a>.
+<p>
+
+Execution traces (<a href="traces.zip">traces.zip<a>):
+<ul>
+<li> <a href="traces/spice.trace">spice.trace</a> - circuit simulator
+<li> <a href="traces/cc.trace">cc.trace</a> - C compiler
+<li> <a href="traces/tex.trace">tex.trace</a> - Tex document processor
+</ul>
+
+<h2>Basic cache simulator </h2>
+
+For this project, you must build a cache simulator
+that supports the following configuration:
+<ul>
+<li> cache size = 8192 (8K)
+<li> cache block size = 16
+<li> cache associativity = 1 (direct mapped)
+<li> write back
+<li> write allocate
+</ul>
+
+In the next project, you will extend your
+cache simulator so it supports a variety of cache configurations.
+Later you will use your cache 
+simulator to evaluate the impact of different cache parameters,
+using the three application traces (spice, cc, tex).
+
+<h2>Submission</h2>
+
+All your code should be in the file <tt>cache.c</tt>.
+You can submit your project directly to the submit server
+via its web interface <a href="http://submit.cs.umd.edu">here</a>.
+
+<p>
+
+You may also submit your project directly
+by executing a Java program on a computer
+with Java and network access.  Use the 
+<a href="submit.jar">submit.jar</a> file
+from the archive <a href="p1.zip">p1.zip</a>,
+To submit, go to the directory containing your project
+and type the following command:
+<p>
+
+</p><center>
+
+<tt>
+java -jar submit.jar
+</tt>
+</center>
+<p>
+
+You will be asked to enter your class account and password, then
+all files in the directory (and its subdirectories) will be
+put in a jar file and submitted to the submit server.
+If your submission is successful you will see the message:
+</p><p>
+
+</p><center>
+<tt>
+Successful submission #<submission_number> received for project 1
+</submission_number></tt>
+</center>
+<p>
+
+</p></li></ul>
+
+<h2>Academic Integrity</h2>
+
+<p>
+The Campus Senate has adopted a policy asking students to include the
+following statement on each assignment in every course: "I pledge on
+my honor that I have not given or received any unauthorized assistance
+on this assignment."  Consequently your program is requested to
+contain this pledge in a comment near the top.
+
+</p><p>
+Please <b>carefully read</b> the academic honesty section of the
+course syllabus.  <b>Any evidence</b> of impermissible cooperation on
+projects, use of disallowed materials or resources, or unauthorized
+use of computer accounts, <b>will be submitted</b> to the Student
+Honor Council, which could result in an XF for the course, or
+suspension or expulsion from the University.  Be sure you understand
+what you are and what you are not permitted to do in regards to
+academic integrity when it comes to project assignments.  These
+policies apply to all students, and the Student Honor Council does not
+consider lack of knowledge of the policies to be a defense for
+violating them.  Full information is found in the course
+syllabus---please review it at this time.
+
+
+</p></li></td>
+</tr></tbody></table>
+
+</body></html>
