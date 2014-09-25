@@ -1,17 +1,22 @@
+CC=gcc
 
-CC = gcc
-CFLAGS = -g
+CFLAGS=-c -Wall
 
-all:  sim
+LDFLAGS=-lm
 
-sim:  main.o cache.o
-	$(CC) -o sim main.o cache.o -lm
+SOURCES=main.c cache.c debug.c
 
-main.o:  main.c cache.h
-	$(CC) $(CFLAGS) -c main.c
+OBJECTS=$(SOURCES:.c=.o)
 
-cache.o:  cache.c cache.h
-	$(CC) $(CFLAGS) -c cache.c
+EXECUTABLE=sim
+
+all: $(SOURCES) $(EXECUTABLE)
 	
+$(EXECUTABLE): $(OBJECTS) 
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+
+.c.o:
+	$(CC) $(CFLAGS) $< -o $@
+
 clean:
-	rm *.o sim
+	rm *.o $(EXECUTABLE)

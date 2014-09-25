@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "cache.h"
+#include "debug.h"
 #include "main.h"
 
 /* cache configuration parameters */
@@ -70,7 +71,8 @@ void set_cache_param(int param, int value)
             cache_writealloc = FALSE;
             break;
         default:
-            printf("error set_cache_param: bad parameter value\n");
+            dbg_printf(MODULE_CACHE, 
+                "error set_cache_param: bad parameter value\n");
             exit(-1);
         }
 
@@ -107,9 +109,16 @@ void init_cache()
          
         ucache->index_mask_offset = LOG2(cache_block_size);
         ucache->index_mask = ((ucache->n_sets - 1) << ucache->index_mask_offset);
+        
+        
+        dbg_printf(MODULE_CACHE, 
+            "index mask @%p offset %d\n", ucache->index_mask, ucache->index_mask_offset);
 
         ucache->tag_mask_offset = LOG2(cache_usize);
-        ucache->tag_mask = ~(1 << (ucache->tag_mask_offset - 1));
+        ucache->tag_mask = (0xFFFFFFFF << (ucache->tag_mask_offset));
+        
+        dbg_printf(MODULE_CACHE, 
+            "tag mask @%p offset %d\n", ucache->tag_mask, ucache->tag_mask_offset);
 
         /*
          * The LRU head array is the data structure that keeps track 
@@ -138,7 +147,8 @@ void init_cache()
             (ucache->LRU_tail == NULL) ||
             (ucache->set_contents == NULL))
             {
-            printf("error allocating cache array\n");
+            dbg_printf(MODULE_CACHE, 
+                "error allocating cache array\n");
             exit(-1);
             }
         
@@ -163,7 +173,7 @@ void init_cache()
     }
 
 /************************************************************/
-Pcache_line get_free_cache_line(cpu_addr_t addr, cpu_addr_t tag_mask)
+Pcache_line get_free_cache_line(void)
     {
     Pcache_line head = free_cache_lines;
     
@@ -181,8 +191,6 @@ Pcache_line get_free_cache_line(cpu_addr_t addr, cpu_addr_t tag_mask)
     
     memset((void*)head, 0, sizeof(cache_line));
 
-    head->tag = addr & tag_mask;
-
     return head;
     }
 
@@ -192,6 +200,26 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
     int index;
     Pcache_line LRU_head;
     Pcache_line LRU_curr;
+    cpu_addr_t tag = (addr & ucache->tag_mask); 
+
+    if (access_type == TRACE_INST_LOAD)
+        {
+        cache_stat_inst.accesses++;
+        
+        dbg_printf(MODULE_CACHE, 
+            "inst read @%p tag @%p ", addr, tag);
+        }
+    else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
+        {
+        cache_stat_data.accesses++;
+
+        if (access_type == TRACE_DATA_LOAD)
+            dbg_printf(MODULE_CACHE, 
+            "data read @%p tag @%p ", addr, tag);
+        else
+            dbg_printf(MODULE_CACHE, 
+            "data write @%p tag @%p ", addr, tag);
+        }
 
     /* handle an access to the cache */
 
@@ -200,17 +228,21 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
         index = (addr & ucache->index_mask) >> ucache->index_mask_offset;
         if (index >= ucache->n_sets)
             {
-            printf("skipping access (%d), index(%d) too big!\n", 
+            dbg_printf(MODULE_CACHE, 
+                "skipping access (%d), index(%d) too big!\n", 
                     access_type, index);
             
             return;
             }
-        
+
+        dbg_printf(MODULE_CACHE, 
+            "cache index @%d ", index);
+
         LRU_head = LRU_curr = ucache->LRU_head[index];
             
         while (LRU_curr != NULL)
             {
-            if (LRU_curr->tag == (addr & ucache->tag_mask))
+            if (LRU_curr->tag == tag)
                 {
                 LRU_curr->hits++;
 
@@ -219,60 +251,88 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
                     LRU_curr->dirty = TRUE;
                     }
 
+                dbg_printf(MODULE_CACHE, 
+                    "hits @%d \n", LRU_curr->hits);
+
                 return;
                 }
 
             LRU_curr = LRU_curr->LRU_next;
             }
 
-
         if (access_type == TRACE_INST_LOAD)
             {
-            cache_stat_inst.accesses++;
             cache_stat_inst.misses++;
-            cache_stat_inst.demand_fetches++;
+            cache_stat_inst.demand_fetches += words_per_block;
             }
         else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
             {
-            cache_stat_data.accesses++;
             cache_stat_data.misses++;
-            cache_stat_data.demand_fetches++;
+            cache_stat_data.demand_fetches += words_per_block;
             }
 
         if (ucache->set_contents[index] == ucache->associativity)
             {
-            LRU_head->tag = addr & ucache->tag_mask;
+            /* If it is dirty, copy it back */
+            
+            if (LRU_head->dirty == TRUE)
+                cache_stat_data.copies_back += words_per_block;
+
+            /* Replace this cache line with a new tag */
+            
+            LRU_head->tag = tag;
+            
+            if (access_type == TRACE_DATA_STORE)
+                {
+                LRU_head->dirty = TRUE;
+                }
 
             if (access_type == TRACE_INST_LOAD)
                 {
                 cache_stat_inst.replacements++;
+
+                dbg_printf(MODULE_CACHE, 
+                    "miss @%d \n", cache_stat_inst.replacements);
                 }
             else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
                 {
                 cache_stat_data.replacements++;
+                dbg_printf(MODULE_CACHE, 
+                    "miss @%d \n", cache_stat_data.replacements);
                 }
+
+            return;
             }
 
-        LRU_curr = get_free_cache_line(addr, ucache->tag_mask);
+        /* Allocate a new cache line */
+        
+        LRU_curr = get_free_cache_line();
 
         if (LRU_curr != NULL)
             {
             insert(&ucache->LRU_head[index], 
                    &ucache->LRU_tail[index], 
                    LRU_curr);
+            
+            ucache->set_contents[index]++;
+            
+            LRU_curr->tag = tag;
+            LRU_curr->valid = TRUE;
+            
+            if (access_type == TRACE_DATA_STORE)
+                {
+                LRU_curr->dirty = TRUE;
+                }
+
+            dbg_printf(MODULE_CACHE, 
+                "new @%d tag @%p\n", ucache->set_contents[index], LRU_curr->tag);
             }
         else
             {
-            printf("cat not get cache line for access (%d), index(%d)!\n", 
+            dbg_printf(MODULE_CACHE, 
+                "cat not get cache line for access (%d), index(%d)!\n", 
                     access_type, index);
             exit(-1);
-            }
-       
-        LRU_curr->hits = 1;
-
-        if (access_type == TRACE_DATA_STORE)
-            {
-            LRU_curr->dirty = TRUE;
             }
         }
     else                      /* Split cache */
@@ -284,9 +344,36 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
 /************************************************************/
 void flush()
     {
+    int index;
+    Pcache_line LRU_curr;
 
     /* flush the cache */
 
+    if (cache_split == FALSE) /* Unified cache */
+        {
+        for (index = 0; index < ucache->n_sets; index++)
+            {
+            LRU_curr = ucache->LRU_head[index];
+                
+            while (LRU_curr != NULL)
+                {
+                if (LRU_curr->dirty == TRUE)
+                    {
+                    cache_stat_data.copies_back += words_per_block;
+
+                    LRU_curr->valid = FALSE;
+                    LRU_curr->dirty = FALSE;
+                    
+                    return;
+                    }
+
+                LRU_curr = LRU_curr->LRU_next;
+                }
+            }     
+        }
+    else                      /* Split cache */
+        {
+        }
     }
 /************************************************************/
 

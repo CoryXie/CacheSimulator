@@ -3,6 +3,8 @@
  * cache.h
  */
 
+#ifndef __CACHE_H_
+#define __CACHE_H_
 
 #define TRUE 1
 #define FALSE 0
@@ -33,6 +35,7 @@ typedef unsigned int cpu_addr_t ;
 typedef struct cache_line_
     {
     cpu_addr_t tag;
+    int valid;
     int dirty;
     int hits;
 
@@ -78,3 +81,5 @@ void print_stats();
 
 /* macros */
 #define LOG2(x) ((int) rint((log((double) (x))) / (log(2.0))))
+
+#endif /* __CACHE_H_ */

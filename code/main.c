@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "cache.h"
+#include "debug.h"
 #include "main.h"
 
 static FILE *traceFile;
@@ -48,6 +49,8 @@ void parse_args(int argc, char ** argv)
             printf("\t-nw: \t\tset allocation policy to no write allocate\n");
             exit(0);
             }
+
+    dbg_init(MODULE_CACHE, 0, NULL);
 
     arg_index = 1;
     while (arg_index != argc - 1)
