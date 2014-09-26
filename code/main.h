@@ -10,7 +10,7 @@
 
 #define PRINT_INTERVAL 100000
 
-void parse_args();
-void play_trace();
-int read_trace_element();
+void parse_args(int argc, char ** argv);
+void play_trace(FILE * inFile);
+int read_trace_element(FILE * inFile, unsigned * access_type, cpu_addr_t * addr);
 

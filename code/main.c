@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <ctype.h>
+
 #include "cache.h"
 #include "debug.h"
 #include "main.h"
@@ -16,6 +19,7 @@ static FILE *traceFile;
 
 int main(int argc, char ** argv)
     {
+    dbg_init(MODULE_CACHE, 0, NULL);
     parse_args(argc, argv);
     init_cache();
     play_trace(traceFile);
@@ -23,123 +27,111 @@ int main(int argc, char ** argv)
     return 0;
     }
 
-
 /************************************************************/
 void parse_args(int argc, char ** argv)
     {
-    int arg_index, i, value;
-
-    if (argc < 2)
+    int index;
+    int value;
+    int c;
+    
+    opterr = 0;
+    
+    while ((c = getopt (argc, argv, "hb:u:i:d:w:p:a:t:")) != -1)
+      switch (c)
         {
-        printf("usage:  sim <options> <trace file>\n");
-        exit(-1);
-        }
-
-    /* parse the command line arguments */
-    for (i = 0; i < argc; i++)
-        if (!strcmp(argv[i], "-h"))
-            {
-            printf("\t-h:  \t\tthis message\n\n");
-            printf("\t-bs <bs>: \tset cache block size to <bs>\n");
-            printf("\t-us <us>: \tset unified cache size to <us>\n");
-            printf("\t-is <is>: \tset instruction cache size to <is>\n");
-            printf("\t-ds <ds>: \tset data cache size to <ds>\n");
-            printf("\t-a <a>: \tset cache associativity to <a>\n");
-            printf("\t-wb: \t\tset write policy to write back\n");
-            printf("\t-wt: \t\tset write policy to write through\n");
-            printf("\t-wa: \t\tset allocation policy to write allocate\n");
-            printf("\t-nw: \t\tset allocation policy to no write allocate\n");
+        case 'h':
+            printf("\t-h : show this message\n");
+            printf("\t-b <bs>: set cache block size to <bs>\n");
+            printf("\t-u <us>: set unified cache size to <us>\n");
+            printf("\t-i <is>: set instruction cache size to <is>\n");
+            printf("\t-d <ds>: set data cache size to <ds>\n");
+            printf("\t-w <wy>: set cache associativity to <wy>\n");
+            printf("\t-p <wr>: set write policy to <wr> (wb or wt)\n");
+            printf("\t-a <al>: set allocation policy to <al> (wa or wn)\n");
+            printf("\t-t <tr>: set trace file name to <tr>\n");
             exit(0);
-            }
-
-    dbg_init(MODULE_CACHE, 0, NULL);
-
-    arg_index = 1;
-    while (arg_index != argc - 1)
-        {
-
-        /* set the cache simulator parameters */
-
-        if (!strcmp(argv[arg_index], "-bs"))
-            {
-            value = atoi(argv[arg_index+1]);
+            break;
+        case 'b':
+            value = atoi(optarg);
             set_cache_param(CACHE_PARAM_BLOCK_SIZE, value);
-            arg_index += 2;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-us"))
-            {
-            value = atoi(argv[arg_index+1]);
+            break;
+        case 'u':
+            value = atoi(optarg);
             set_cache_param(CACHE_PARAM_USIZE, value);
-            arg_index += 2;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-is"))
-            {
-            value = atoi(argv[arg_index+1]);
+            break;
+        case 'i':
+            value = atoi(optarg);
             set_cache_param(CACHE_PARAM_ISIZE, value);
-            arg_index += 2;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-ds"))
-            {
-            value = atoi(argv[arg_index+1]);
+            break;
+        case 'd':
+            value = atoi(optarg);
             set_cache_param(CACHE_PARAM_DSIZE, value);
-            arg_index += 2;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-a"))
-            {
-            value = atoi(argv[arg_index+1]);
+            break;
+        case 'w':
+            value = atoi(optarg);
             set_cache_param(CACHE_PARAM_ASSOC, value);
-            arg_index += 2;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-wb"))
-            {
-            set_cache_param(CACHE_PARAM_WRITEBACK, value);
-            arg_index += 1;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-wt"))
-            {
-            set_cache_param(CACHE_PARAM_WRITETHROUGH, value);
-            arg_index += 1;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-wa"))
-            {
-            set_cache_param(CACHE_PARAM_WRITEALLOC, value);
-            arg_index += 1;
-            continue;
-            }
-
-        if (!strcmp(argv[arg_index], "-nw"))
-            {
-            set_cache_param(CACHE_PARAM_NOWRITEALLOC, value);
-            arg_index += 1;
-            continue;
-            }
-
-        printf("error:  unrecognized flag %s\n", argv[arg_index]);
-        exit(-1);
-
+            break;
+        case 'p':
+            
+          if (!strcmp(optarg, "-wt"))
+              {
+              set_cache_param(CACHE_PARAM_WRITETHROUGH, TRUE);
+              }
+          else if (!strcmp(optarg, "-wb"))
+              {
+              set_cache_param(CACHE_PARAM_WRITEBACK, TRUE);
+              }
+          
+            break;
+        case 'a':
+            
+          if (!strcmp(optarg, "-wa"))
+              {
+              set_cache_param(CACHE_PARAM_WRITEALLOC, TRUE);
+              }
+          else if (!strcmp(optarg, "-wn"))
+              {
+              set_cache_param(CACHE_PARAM_NOWRITEALLOC, TRUE);
+              }
+          
+            break;
+        case 't':
+            /* open the trace file */
+            traceFile = fopen(optarg, "r");
+            if (traceFile == NULL)
+                {
+                fprintf (stderr, "trace file %s not opened\n", optarg);
+                exit (-1);
+                }
+            break;
+        case '?':
+          if ((optopt == 'b') ||
+              (optopt == 'u') ||
+              (optopt == 'i') ||
+              (optopt == 'd') ||
+              (optopt == 'w') ||
+              (optopt == 'p') ||
+              (optopt == 'a') ||
+              (optopt == 't'))
+            fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+          else if (isprint (optopt))
+            fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+          else
+            fprintf (stderr,
+                     "Unknown option character `\\x%x'.\n",
+                     optopt);
+        default:
+          exit (-1);
         }
+
+    for (index = optind; index < argc; index++)
+      printf ("Non-option argument %s\n", argv[index]);
 
     dump_settings();
 
-    /* open the trace file */
-    traceFile = fopen(argv[arg_index], "r");
-
     return;
     }
+
 /************************************************************/
 
 /************************************************************/
