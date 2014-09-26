@@ -75,6 +75,7 @@ void perform_access();
 void flush();
 void delete();
 void insert();
+void gohead();
 void dump_settings();
 void print_stats();
 

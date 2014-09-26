@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "cache.h"
 #include "debug.h"
 #include "main.h"
@@ -19,6 +20,7 @@ int main(int argc, char ** argv)
     init_cache();
     play_trace(traceFile);
     print_stats();
+    return 0;
     }
 
 
@@ -143,8 +145,8 @@ void parse_args(int argc, char ** argv)
 /************************************************************/
 void play_trace(FILE * inFile)
     {
-    addr_t addr;
-    unsigned data, access_type;
+    cpu_addr_t addr;
+    unsigned access_type;
     int num_inst;
 
     num_inst = 0;

@@ -82,7 +82,7 @@ void set_cache_param(int param, int value)
 /************************************************************/
 void init_cache()
     {
-    int set;
+    int index;
     
     /* initialize the cache, and cache statistics data structures */
 
@@ -154,11 +154,11 @@ void init_cache()
         
         /* Initially, all elements in the array should be set to NULL */
         
-        for (set = 0; set < ucache->n_sets; set++)
+        for (index = 0; index < ucache->n_sets; index++)
             {
-            ucache->LRU_head[set] = NULL;
-            ucache->LRU_tail[set] = NULL;
-            ucache->set_contents[set]= 0;
+            ucache->LRU_head[index] = NULL;
+            ucache->LRU_tail[index] = NULL;
+            ucache->set_contents[index]= 0;
             }
 
         ucache->contents = 0;
@@ -199,6 +199,7 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
     {
     int index;
     Pcache_line LRU_head;
+    Pcache_line LRU_tail;
     Pcache_line LRU_curr;
     cpu_addr_t tag = (addr & ucache->tag_mask); 
 
@@ -207,7 +208,7 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
         cache_stat_inst.accesses++;
         
         dbg_printf(MODULE_CACHE, 
-            "inst read @%p tag @%p ", addr, tag);
+            "inst rd @%08x tag @%08x ", addr, tag);
         }
     else /* TRACE_DATA_LOAD || TRACE_DATA_STORE */
         {
@@ -215,10 +216,10 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
 
         if (access_type == TRACE_DATA_LOAD)
             dbg_printf(MODULE_CACHE, 
-            "data read @%p tag @%p ", addr, tag);
+            "data rd @%08x tag @%08x ", addr, tag);
         else
             dbg_printf(MODULE_CACHE, 
-            "data write @%p tag @%p ", addr, tag);
+            "data wr @%08x tag @%08x ", addr, tag);
         }
 
     /* handle an access to the cache */
@@ -253,6 +254,12 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
 
                 dbg_printf(MODULE_CACHE, 
                     "hits @%d \n", LRU_curr->hits);
+                
+                /* LRU requires a recent accessed cache line to go head */
+                
+                gohead(&ucache->LRU_head[index], 
+                       &ucache->LRU_tail[index], 
+                       LRU_curr);
 
                 return;
                 }
@@ -270,21 +277,30 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
             cache_stat_data.misses++;
             cache_stat_data.demand_fetches += words_per_block;
             }
-
+        
+        /* The way is full and we have a miss, perform LRU replace */
+        
         if (ucache->set_contents[index] == ucache->associativity)
             {
+            LRU_tail = ucache->LRU_tail[index];
+            
             /* If it is dirty, copy it back */
             
-            if (LRU_head->dirty == TRUE)
+            if (LRU_tail->dirty == TRUE)
+                {
                 cache_stat_data.copies_back += words_per_block;
+                
+                dbg_printf(MODULE_CACHE, 
+                    "write back @%d ", cache_stat_data.copies_back);
+                }
 
             /* Replace this cache line with a new tag */
             
-            LRU_head->tag = tag;
+            LRU_tail->tag = tag;
             
             if (access_type == TRACE_DATA_STORE)
                 {
-                LRU_head->dirty = TRUE;
+                LRU_tail->dirty = TRUE;
                 }
 
             if (access_type == TRACE_INST_LOAD)
@@ -325,7 +341,7 @@ void perform_access(cpu_addr_t addr, unsigned access_type)
                 }
 
             dbg_printf(MODULE_CACHE, 
-                "new @%d tag @%p\n", ucache->set_contents[index], LRU_curr->tag);
+                "ways @%d <new>\n", ucache->set_contents[index]);
             }
         else
             {
@@ -363,8 +379,6 @@ void flush()
 
                     LRU_curr->valid = FALSE;
                     LRU_curr->dirty = FALSE;
-                    
-                    return;
                     }
 
                 LRU_curr = LRU_curr->LRU_next;
@@ -416,6 +430,40 @@ void insert(Pcache_line * head, Pcache_line * tail, Pcache_line item)
 
     *head = item;
     }
+    
+void gohead(Pcache_line * head, Pcache_line * tail, Pcache_line item)
+    {
+    if (item->LRU_prev)
+        {
+        item->LRU_prev->LRU_next = item->LRU_next;
+        }
+    else
+        {
+        /* item at head */
+        return;
+        }
+
+    if (item->LRU_next)
+        {
+        item->LRU_next->LRU_prev = item->LRU_prev;
+        }
+    else
+        {
+        /* item at tail */
+        *tail = item->LRU_prev;
+        }    
+    
+    item->LRU_next = *head;
+    item->LRU_prev = (Pcache_line)NULL;
+
+    if (item->LRU_next)
+        item->LRU_next->LRU_prev = item;
+    else
+        *tail = item;
+
+    *head = item;
+    }
+
 /************************************************************/
 
 /************************************************************/
